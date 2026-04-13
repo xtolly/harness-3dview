@@ -1,0 +1,20 @@
+{
+  "name": "harness-3d",
+  "version": "0.1.0",
+  "description": "3D Harness Routing Visualization System",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "lil-gui": "^0.20.0",
+    "occt-import-js": "^0.0.23",
+    "three": "^0.170.0",
+    "three-mesh-bvh": "^0.9.9"
+  },
+  "devDependencies": {
+    "vite": "^6.0.0"
+  }
+}

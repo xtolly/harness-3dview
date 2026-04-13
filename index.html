@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="3D Harness Routing Visualization System - 三维线束布线可视化系统" />
+  <title>3D Harness Routing System</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <!-- 3D Canvas Container -->
+  <div id="canvas-container"></div>
+
+  <!-- Top Toolbar -->
+  <header id="toolbar">
+    <div class="toolbar-brand">
+      <svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+      </svg>
+      <span class="brand-text">HARNESS<span class="brand-accent">3D</span></span>
+    </div>
+    <div class="toolbar-actions">
+      <button id="btn-add-example" class="toolbar-btn" title="随机创建线束">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <span>随机创建线束</span>
+      </button>
+      <input type="file" id="file-import-model" accept=".gltf,.glb,.obj,.stl,.step,.stp,.mtl,.png,.jpg,.jpeg" multiple style="display:none;" />
+      <button id="btn-import-model" class="toolbar-btn" title="导入外部三维模型 (GLTF, OBJ, STL, STEP)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <span>导入模型</span>
+      </button>
+      <button id="btn-clear-scene" class="toolbar-btn" title="清空场景">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3,6 5,6 21,6"/><path d="M19,6v14a2,2,0,0,1-2,2H7a2,2,0,0,1-2-2V6m3,0V4a2,2,0,0,1,2-2h4a2,2,0,0,1,2,2v2"/></svg>
+        <span>清空场景</span>
+      </button>
+      <button id="btn-fit-view" class="toolbar-btn" title="适配视图">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+        <span>适配视图</span>
+      </button>
+      <button id="btn-toggle-grid" class="toolbar-btn active" title="显示/隐藏网格">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+        <span>网格</span>
+      </button>
+      <span class="toolbar-divider"></span>
+      <button id="btn-check-collision" class="toolbar-btn" title="干涉检查">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="9" r="6"/><circle cx="15" cy="15" r="6"/></svg>
+        <span>干涉检查</span>
+      </button>
+      <span class="toolbar-divider"></span>
+      <button id="btn-perf-test" class="toolbar-btn" title="性能测试：添加1000根线束">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13,2 3,14 12,14 11,22 21,10 12,10"/></svg>
+        <span>性能测试</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Navigator Panel (left side) -->
+  <aside id="navigator-panel" class="panel navigator" style="left: 16px; top: calc(var(--toolbar-height) + 16px); bottom: calc(var(--statusbar-height) + 16px); right: auto; transform: none; width: var(--panel-width); display: flex; flex-direction: column;">
+    <div class="panel-header">
+      <h3 style="font-size: 14px; font-weight: 600; color: var(--text-primary);">场景结构树</h3>
+    </div>
+    <div class="panel-content" style="flex: 1; overflow-y: auto; padding: 8px;">
+      <ul id="entity-tree" class="entity-tree"></ul>
+    </div>
+  </aside>
+
+  <!-- Properties Panel (right side) -->
+  <aside id="properties-panel" class="panel hidden">
+    <div class="panel-header">
+      <h3>线束属性</h3>
+      <button id="btn-close-props" class="panel-close">&times;</button>
+    </div>
+    <div id="properties-content" class="panel-body">
+      <!-- Dynamic content -->
+    </div>
+  </aside>
+
+  <!-- Status Bar (bottom) -->
+  <footer id="status-bar">
+    <div class="status-left">
+      <span id="status-harness-count">线束: 0</span>
+      <span class="status-divider">|</span>
+      <span id="status-selected">未选中</span>
+      <span class="status-divider">|</span>
+      <span id="status-collision">干涉: --</span>
+    </div>
+    <div class="status-right">
+      <span id="status-renderer" class="status-renderer">渲染器: --</span>
+      <span class="status-divider">|</span>
+      <span id="status-fps">FPS: --</span>
+    </div>
+  </footer>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
