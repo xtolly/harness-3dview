@@ -6,6 +6,8 @@
 import { PathBuilder } from './PathBuilder.js';
 import { CrossSection } from './CrossSection.js';
 import { HarnessRenderer } from './HarnessRenderer.js';
+import { DensityAnalyzer } from './DensityAnalyzer.js';
+import { VolumeRenderer } from './VolumeRenderer.js';
 
 let idCounter = 0;
 
@@ -22,6 +24,10 @@ export class HarnessManager {
      * Map<id, { path, crossSection, curve, segments, options }>
      */
     this.harnessData = new Map();
+
+    this.isHeatmapEnabled = false;
+    this.lastDensityResult = null;
+    this.volumeRenderer = new VolumeRenderer(scene);
   }
 
   /**
@@ -159,7 +165,53 @@ export class HarnessManager {
       if (mesh) this.scene.remove(mesh);
     }
     this.harnessData.clear();
+    this.isHeatmapEnabled = false;
+    this.lastDensityResult = null;
+    this.volumeRenderer.clear();
     HarnessRenderer.resetColorIndex();
+  }
+
+  /**
+   * 开启或关闭空间三维体积热力图分析
+   */
+  toggleDensityHeatmap(enabled, options = { sampleStep: 0.5, voxelSize: 0.5, opacity: 0.4 }) {
+    this.isHeatmapEnabled = enabled;
+
+    if (!enabled) {
+      for (const [id] of this.harnessData) {
+        this.renderer.clearGhostMode(id);
+      }
+      this.volumeRenderer.clear();
+      this.lastDensityResult = null;
+      return 0;
+    }
+
+    const targetList = Array.from(this.harnessData.values()).map(data => ({
+      id: data.id,
+      curve: data.curve,
+      length: PathBuilder.getLength(data.curve)
+    }));
+
+    const result = DensityAnalyzer.analyze(targetList, options);
+    this.lastDensityResult = result;
+
+    if (result.globalMax === 0) result.globalMax = 1;
+
+    // 所有线束幽灵化
+    for (const [id] of this.harnessData) {
+      this.renderer.setGhostMode(id);
+    }
+    
+    // 生成空间体积渲染方块
+    this.volumeRenderer.createVolume(result, options.opacity);
+
+    return result.globalMax;
+  }
+
+  updateHeatmapOpacity(opacity) {
+      if (this.isHeatmapEnabled) {
+          this.volumeRenderer.setOpacity(opacity);
+      }
   }
 
   /**

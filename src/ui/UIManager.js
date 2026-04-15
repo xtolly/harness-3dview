@@ -30,10 +30,47 @@ export class UIManager {
     this._fpsFrames = 0;
     this._fpsLastTime = performance.now();
 
+    this.legendElement = null;
+    this.legendMaxLabel = null;
+
+    this._initHeatmapLegend();
     this._initGUI();
     this._initPropertiesPanel();
     this._initToolbarEvents();
     this._initSelectionEvents();
+  }
+
+  /* ============================================================
+     Density Heatmap Legend
+     ============================================================ */
+  _initHeatmapLegend() {
+    this.legendElement = document.createElement('div');
+    this.legendElement.id = 'heatmap-legend';
+    this.legendElement.innerHTML = `
+      <div class="legend-title">空间密度 (线束分布密集度)</div>
+      <div class="legend-gradient"></div>
+      <div class="legend-labels">
+        <span>稀疏 (0)</span>
+        <span id="heatmap-legend-max">拥挤 (MAX)</span>
+      </div>
+    `;
+    document.body.appendChild(this.legendElement);
+    this.legendMaxLabel = document.getElementById('heatmap-legend-max');
+  }
+
+  showHeatmapLegend(maxDensity) {
+    if (this.legendMaxLabel) {
+      this.legendMaxLabel.textContent = `拥挤 (${Math.ceil(maxDensity)})`;
+    }
+    if (this.legendElement) {
+      this.legendElement.classList.add('visible');
+    }
+  }
+
+  hideHeatmapLegend() {
+    if (this.legendElement) {
+      this.legendElement.classList.remove('visible');
+    }
   }
 
   /* ============================================================
@@ -102,6 +139,36 @@ export class UIManager {
           this._onCollisionViewChange(value);
         }
       });
+
+    // ---- 空间密度分析参数 ----
+    this.densityParams = {
+      enabled: false,
+      sampleStep: 0.5,
+      voxelSize: 0.5,
+      opacity: 0.6,
+    };
+    this._onDensityToggle = null;
+    this._onDensityOpacityChange = null;
+
+    const densityFolder = this.gui.addFolder('空间密度分析');
+    densityFolder
+      .add(this.densityParams, 'enabled')
+      .name('开启密度热力图')
+      .onChange((v) => {
+        if (this._onDensityToggle) this._onDensityToggle(v, this.densityParams);
+      });
+    densityFolder
+      .add(this.densityParams, 'sampleStep', 0.1, 2, 0.1)
+      .name('采样精度(约小越精)')
+      .onChange(() => { if(this.densityParams.enabled && this._onDensityToggle) this._onDensityToggle(true, this.densityParams); });
+    densityFolder
+      .add(this.densityParams, 'voxelSize', 0.1, 2, 0.1)
+      .name('散列网格边长大小')
+      .onChange(() => { if(this.densityParams.enabled && this._onDensityToggle) this._onDensityToggle(true, this.densityParams); });
+    densityFolder
+      .add(this.densityParams, 'opacity', 0.1, 1.0, 0.05)
+      .name('体积云透明程度')
+      .onChange((v) => { if(this._onDensityOpacityChange) this._onDensityOpacityChange(v); });
 
     const initialRenderSettings = this.sceneManager.getRenderSettings();
     this.renderParams = {

@@ -31,7 +31,7 @@ async function main() {
   const harnessManager = new HarnessManager(sceneManager.scene);
   const collisionDetector = new CollisionDetector(sceneManager.scene);
   const modelLoader = new ModelLoader(sceneManager.scene);
-  
+
   const controlPointEditor = new ControlPointEditor(
     sceneManager.scene,
     sceneManager.camera,
@@ -72,7 +72,14 @@ async function main() {
       ...harnessManager.getSelectableObjects(),
       ...modelLoader.getMeshes()
     ];
-    interaction.setSelectableObjects(allMeshes);
+
+    // 如果处于热力图模式，禁用所有的 3D 悬停和选中交互，防止干扰
+    if (harnessManager.isHeatmapEnabled) {
+      interaction.setSelectableObjects([]);
+    } else {
+      interaction.setSelectableObjects(allMeshes);
+    }
+
     ui.updateNavigatorTree(allMeshes);
     ui.updateStatus();
   }
@@ -136,23 +143,23 @@ async function main() {
   ui._onClearScene = () => {
     controlPointEditor.hide();
     collisionDetector.clearVisuals();
-    
+
     const allMeshes = [
       ...harnessManager.getSelectableObjects(),
       ...modelLoader.getMeshes()
     ];
     collisionDetector.restoreMeshes(allMeshes);
     collisionDetector.restoreVisibility(allMeshes);
-    
+
     harnessManager.clearAll();
     modelLoader.clearAll();
-    
+
     interaction.setSelectableObjects([]);
     ui.updateNavigatorTree([]);
     ui.updateStatus();
     ui.setCollisionButtonState(false, null);
   };
-  
+
   ui._onDeleteEntity = (mesh, isModel) => {
     if (isModel) {
       modelLoader.removeModel(mesh);
@@ -190,7 +197,7 @@ async function main() {
       const model = await modelLoader.loadFromFiles(files);
       console.log(`模型导入成功:`, model);
       refreshScene();
-      
+
       const allMeshes = [
         ...harnessManager.getSelectableObjects(),
         ...modelLoader.getMeshes()
@@ -207,7 +214,7 @@ async function main() {
      ============================================================ */
   ui._onCheckCollision = () => {
     const allMeshes = getAllMeshes();
-    
+
     if (allMeshes.length < 2) {
       console.log('至少需要 2 个对象才能进行干涉检查');
       ui.updateCollisionStatus(0);
@@ -249,6 +256,33 @@ async function main() {
 
   ui._onCollisionViewChange = () => {
     syncCollisionVisibility();
+  };
+
+  /* ============================================================
+     Density Heatmap Callbacks
+     ============================================================ */
+  ui._onDensityToggle = (enabled, options) => {
+    const maxDensity = harnessManager.toggleDensityHeatmap(enabled, options);
+
+    // 强制取消当前的任何选中状态
+    if (interaction.selectedObject) {
+      interaction._restoreMaterial(interaction.selectedObject);
+      interaction.selectedObject = null;
+      interaction.dispatchEvent(new CustomEvent('deselect'));
+    }
+
+    if (enabled) {
+      ui.showHeatmapLegend(maxDensity);
+      console.log(`✓ 开启空间密度热力图 (基于网格统计的区域拥挤度, 最大密度: ${maxDensity.toFixed(1)})`);
+    } else {
+      ui.hideHeatmapLegend();
+      console.log('关闭空间密度热力图');
+    }
+    refreshScene();
+  };
+
+  ui._onDensityOpacityChange = (opacity) => {
+    harnessManager.updateHeatmapOpacity(opacity);
   };
 
   /* ============================================================
@@ -353,11 +387,11 @@ async function main() {
     ui.syncNavigatorSelection(harnessId);
     // 判断如果是线束则显示控制点并加载右侧属性面板，否则（外部模型）只显示选中状态
     if (!object.userData.isImportedModel) {
-       controlPointEditor.show(harnessId);
-       ui.showProperties(harnessId);
+      controlPointEditor.show(harnessId);
+      ui.showProperties(harnessId);
     } else {
-       controlPointEditor.hide();
-       ui.hideProperties();
+      controlPointEditor.hide();
+      ui.hideProperties();
     }
   });
 

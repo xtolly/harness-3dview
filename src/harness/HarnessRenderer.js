@@ -3,7 +3,7 @@
  *
  * 核心职责：将路径 + 截面组合为三维 Mesh
  *   - 圆形截面 → TubeGeometry（性能最优）
- *   - 非圆截面 → ExtrudeGeometry 沿路径挤出
+  // - 非圆截面 → ExtrudeGeometry 沿路径挤出
  */
 import * as THREE from 'three';
 
@@ -26,6 +26,7 @@ let colorIndex = 0;
 export class HarnessRenderer {
   constructor() {
     this._meshes = new Map(); // id → Mesh
+    this._originalMaterials = new Map(); // id → 原始材质
   }
 
   /**
@@ -89,6 +90,8 @@ export class HarnessRenderer {
     mesh.name = `harness_${id}`;
 
     this._meshes.set(id, mesh);
+    // 保存原始材质以备恢复
+    this._originalMaterials.set(id, material);
     return mesh;
   }
 
@@ -136,9 +139,53 @@ export class HarnessRenderer {
         mesh.material.dispose();
       }
       this._meshes.delete(id);
+      this._originalMaterials.delete(id);
       return mesh; // 调用方需要从 scene 移除
     }
     return null;
+  }
+
+  /**
+   * 将线束设置为通透幽灵状态（用于体渲染环境铺底）
+   */
+  setGhostMode(id) {
+    const mesh = this._meshes.get(id);
+    if (!mesh) return;
+
+    // 储备原本的工业着色材质
+    if (mesh.material && !mesh.material.userData?.isGhost) {
+      this._originalMaterials.set(id, mesh.material);
+    }
+
+    const ghostMaterial = new THREE.MeshStandardMaterial({
+      color: 0x888888, // 灰色
+      transparent: true, // 启用透明
+      opacity: 0.4,      // 调整透明度
+      depthTest: true,   // 保持真实的 3D 前后遮挡
+      depthWrite: false, // 避免多层透明交错的诡异遮挡
+      wireframe: false,
+      roughness: 0.6,
+      metalness: 0.3
+    });
+    ghostMaterial.userData.isGhost = true;
+
+    mesh.material = ghostMaterial;
+  }
+
+  /**
+   * 关闭幽灵状态，恢复原先渲染
+   */
+  clearGhostMode(id) {
+    const mesh = this._meshes.get(id);
+    if (!mesh) return;
+
+    if (this._originalMaterials.has(id)) {
+      const originalMaterial = this._originalMaterials.get(id);
+      if (mesh.material && mesh.material.userData?.isGhost) {
+        mesh.material.dispose();
+      }
+      mesh.material = originalMaterial;
+    }
   }
 
   /**
