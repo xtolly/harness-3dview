@@ -679,19 +679,33 @@ export class EnvelopeManager {
     }
 
     // 7. 创建包络 Mesh
+    const isTransparent = this.opacity < 1.0;
+    const isDepthWrite = this.opacity > 0.9;
     const material = new THREE.MeshPhysicalMaterial({
       color: 0x10b981,
-      transparent: true,
+      transparent: isTransparent,
       opacity: this.opacity,
-      roughness: 0.2,
+      roughness: 0.3,
       metalness: 0.1,
-      depthWrite: false,
+      depthWrite: isDepthWrite,
       side: THREE.DoubleSide
     });
 
     const envelopeMesh = new THREE.Mesh(envelopeGeometry, material);
     envelopeMesh.name = `[包络] ${model.name || '模型'}`;
     envelopeMesh.raycast = () => { };
+
+    // 叠加一层淡淡的科技网格线
+    const wireframeGeo = new THREE.WireframeGeometry(envelopeGeometry);
+    const wireframeMat = new THREE.LineBasicMaterial({
+      color: 0x34d399,
+      transparent: true,
+      opacity: this.opacity * 0.2, // 保持比外壳更淡的线框
+      depthWrite: false
+    });
+    const wireframeLines = new THREE.LineSegments(wireframeGeo, wireframeMat);
+    wireframeLines.name = 'envelope_wireframe';
+    envelopeMesh.add(wireframeLines);
 
     // 将包络放置到模型的世界矩阵位置
     envelopeMesh.matrix.copy(model.matrixWorld);
@@ -751,18 +765,30 @@ export class EnvelopeManager {
    */
   setOpacity(opacity) {
     this.opacity = opacity;
+    const isTransparent = opacity < 1.0;
+    const isDepthWrite = opacity > 0.9;
     this.envelopes.forEach((mesh) => {
       if (mesh.material) {
+        mesh.material.transparent = isTransparent;
         mesh.material.opacity = opacity;
+        mesh.material.depthWrite = isDepthWrite;
         mesh.material.needsUpdate = true;
       }
+      mesh.children.forEach((child) => {
+        if (child.name === 'envelope_wireframe' && child.material) {
+          child.material.opacity = opacity * 0.2;
+          child.material.needsUpdate = true;
+        }
+      });
     });
   }
 
   /**
-   * 删除特定的包络网格
+   * 递归清理 Mesh 及其子物体的 GPU 资源
+   * @param {THREE.Object3D} mesh
    */
-  removeEnvelope(mesh) {
+  _disposeMesh(mesh) {
+    if (!mesh) return;
     if (mesh.geometry) mesh.geometry.dispose();
     if (mesh.material) {
       if (Array.isArray(mesh.material)) {
@@ -771,6 +797,16 @@ export class EnvelopeManager {
         mesh.material.dispose();
       }
     }
+    if (mesh.children) {
+      mesh.children.forEach((child) => this._disposeMesh(child));
+    }
+  }
+
+  /**
+   * 删除特定的包络网格
+   */
+  removeEnvelope(mesh) {
+    this._disposeMesh(mesh);
     this.envelopesGroup.remove(mesh);
     this.envelopes = this.envelopes.filter(m => m !== mesh);
   }
@@ -780,14 +816,7 @@ export class EnvelopeManager {
    */
   clear() {
     this.envelopes.forEach((mesh) => {
-      if (mesh.geometry) mesh.geometry.dispose();
-      if (mesh.material) {
-        if (Array.isArray(mesh.material)) {
-          mesh.material.forEach(m => m.dispose());
-        } else {
-          mesh.material.dispose();
-        }
-      }
+      this._disposeMesh(mesh);
       this.envelopesGroup.remove(mesh);
     });
     this.envelopes = [];
