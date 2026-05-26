@@ -15,6 +15,7 @@ import { HarnessManager } from './harness/HarnessManager.js';
 import { CollisionDetector } from './harness/CollisionDetector.js';
 import { ControlPointEditor } from './harness/ControlPointEditor.js';
 import { ModelLoader } from './core/ModelLoader.js';
+import { EnvelopeManager } from './core/EnvelopeManager.js';
 import { UIManager } from './ui/UIManager.js';
 import { EXAMPLE_SET_1, getRandomExample } from './data/examples.js';
 
@@ -31,6 +32,7 @@ async function main() {
   const harnessManager = new HarnessManager(sceneManager.scene);
   const collisionDetector = new CollisionDetector(sceneManager.scene);
   const modelLoader = new ModelLoader(sceneManager.scene);
+  const envelopeManager = new EnvelopeManager(sceneManager.scene);
 
   const controlPointEditor = new ControlPointEditor(
     sceneManager.scene,
@@ -70,7 +72,8 @@ async function main() {
   function refreshScene() {
     const allMeshes = [
       ...harnessManager.getSelectableObjects(),
-      ...modelLoader.getMeshes()
+      ...modelLoader.getMeshes(),
+      ...envelopeManager.getMeshes()
     ];
 
     // 如果处于热力图模式，禁用所有的 3D 悬停和选中交互，防止干扰
@@ -87,7 +90,8 @@ async function main() {
   function getAllMeshes() {
     return [
       ...harnessManager.getSelectableObjects(),
-      ...modelLoader.getMeshes()
+      ...modelLoader.getMeshes(),
+      ...envelopeManager.getMeshes()
     ];
   }
 
@@ -146,13 +150,15 @@ async function main() {
 
     const allMeshes = [
       ...harnessManager.getSelectableObjects(),
-      ...modelLoader.getMeshes()
+      ...modelLoader.getMeshes(),
+      ...envelopeManager.getMeshes()
     ];
     collisionDetector.restoreMeshes(allMeshes);
     collisionDetector.restoreVisibility(allMeshes);
 
     harnessManager.clearAll();
     modelLoader.clearAll();
+    envelopeManager.clear();
 
     interaction.setSelectableObjects([]);
     ui.updateNavigatorTree([]);
@@ -161,7 +167,9 @@ async function main() {
   };
 
   ui._onDeleteEntity = (mesh, isModel) => {
-    if (isModel) {
+    if (mesh.userData.isEnvelope) {
+      envelopeManager.removeEnvelope(mesh);
+    } else if (isModel) {
       modelLoader.removeModel(mesh);
     } else {
       harnessManager.removeHarness(mesh.userData.harnessId);
@@ -200,12 +208,25 @@ async function main() {
 
       const allMeshes = [
         ...harnessManager.getSelectableObjects(),
-        ...modelLoader.getMeshes()
+        ...modelLoader.getMeshes(),
+        ...envelopeManager.getMeshes()
       ];
       interaction.fitToObjects(allMeshes);
     } catch (err) {
       console.error('导入模型失败:', err);
       alert(`导入模型失败: ${err.message}`);
+    }
+  };
+
+  ui._onGenerateEnvelope = async (distance) => {
+    console.log(`正在为所有非线束模型计算包络，偏移距离: ${distance}...`);
+    try {
+      await envelopeManager.generate(modelLoader.loadedModels, distance);
+      console.log('包络生成成功');
+      refreshScene();
+    } catch (err) {
+      console.error('生成包络失败:', err);
+      alert(`生成包络失败: ${err.message}`);
     }
   };
 
@@ -283,6 +304,10 @@ async function main() {
 
   ui._onDensityOpacityChange = (opacity) => {
     harnessManager.updateHeatmapOpacity(opacity);
+  };
+
+  ui._onEnvelopeOpacityChange = (opacity) => {
+    envelopeManager.setOpacity(opacity);
   };
 
   /* ============================================================

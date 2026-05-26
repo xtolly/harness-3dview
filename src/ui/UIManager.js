@@ -123,6 +123,10 @@ export class UIManager {
     this.collisionViewParams = {
       showNonCollidingEntities: false,
     };
+    this.envelopeParams = {
+      opacity: 0.35,
+    };
+    this._onEnvelopeOpacityChange = null;
 
     const displayFolder = this.gui.addFolder('显示选项');
     displayFolder
@@ -137,6 +141,14 @@ export class UIManager {
       .onChange((value) => {
         if (this._onCollisionViewChange) {
           this._onCollisionViewChange(value);
+        }
+      });
+    displayFolder
+      .add(this.envelopeParams, 'opacity', 0.0, 1.0, 0.05)
+      .name('包络透明度')
+      .onChange((value) => {
+        if (this._onEnvelopeOpacityChange) {
+          this._onEnvelopeOpacityChange(value);
         }
       });
 
@@ -160,15 +172,15 @@ export class UIManager {
     densityFolder
       .add(this.densityParams, 'sampleStep', 0.1, 2, 0.1)
       .name('采样精度(约小越精)')
-      .onChange(() => { if(this.densityParams.enabled && this._onDensityToggle) this._onDensityToggle(true, this.densityParams); });
+      .onChange(() => { if (this.densityParams.enabled && this._onDensityToggle) this._onDensityToggle(true, this.densityParams); });
     densityFolder
       .add(this.densityParams, 'voxelSize', 0.1, 2, 0.1)
       .name('散列网格边长大小')
-      .onChange(() => { if(this.densityParams.enabled && this._onDensityToggle) this._onDensityToggle(true, this.densityParams); });
+      .onChange(() => { if (this.densityParams.enabled && this._onDensityToggle) this._onDensityToggle(true, this.densityParams); });
     densityFolder
       .add(this.densityParams, 'opacity', 0.1, 1.0, 0.05)
       .name('体积云透明程度')
-      .onChange((v) => { if(this._onDensityOpacityChange) this._onDensityOpacityChange(v); });
+      .onChange((v) => { if (this._onDensityOpacityChange) this._onDensityOpacityChange(v); });
 
     const initialRenderSettings = this.sceneManager.getRenderSettings();
     this.renderParams = {
@@ -360,20 +372,26 @@ export class UIManager {
     const tree = document.getElementById('entity-tree');
     if (!tree) return;
     tree.innerHTML = '';
-    
+
     meshes.forEach(mesh => {
       const isModel = mesh.userData.isImportedModel;
+      const isEnvelope = mesh.userData.isEnvelope;
       const id = mesh.userData.harnessId || mesh.name;
       const name = mesh.name || id;
-      
+
       const li = document.createElement('li');
       li.className = 'entity-item';
       li.dataset.harnessId = id;
-      
-      const icon = isModel 
-        ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>` 
-        : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>`;
-      
+
+      let icon = '';
+      if (isEnvelope) {
+        icon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" stroke-dasharray="3 3"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>`;
+      } else if (isModel) {
+        icon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>`;
+      } else {
+        icon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>`;
+      }
+
       li.innerHTML = `
         <div class="entity-item-name">
           ${icon}
@@ -388,33 +406,33 @@ export class UIManager {
           </button>
         </div>
       `;
-      
+
       li.addEventListener('click', (e) => {
-          if (e.target.closest('.entity-item-actions')) return;
-          if (this._onSelectEntity) this._onSelectEntity(mesh);
+        if (e.target.closest('.entity-item-actions')) return;
+        if (this._onSelectEntity) this._onSelectEntity(mesh);
       });
-      
+
       const btnVis = li.querySelector('.toggle-vis');
       btnVis.addEventListener('click', () => {
-          mesh.visible = !mesh.visible;
-          btnVis.style.opacity = mesh.visible ? '1' : '0.4';
+        mesh.visible = !mesh.visible;
+        btnVis.style.opacity = mesh.visible ? '1' : '0.4';
 
-          if (!mesh.visible && this.interaction.selectedObject === mesh) {
-            this.interaction._restoreMaterial(mesh);
-            this.interaction.selectedObject = null;
-            this.interaction.dispatchEvent(new CustomEvent('deselect'));
-          }
+        if (!mesh.visible && this.interaction.selectedObject === mesh) {
+          this.interaction._restoreMaterial(mesh);
+          this.interaction.selectedObject = null;
+          this.interaction.dispatchEvent(new CustomEvent('deselect'));
+        }
       });
-      
+
       if (!mesh.visible) {
-          btnVis.style.opacity = '0.4';
+        btnVis.style.opacity = '0.4';
       }
 
       const btnDel = li.querySelector('.delete-entity');
       btnDel.addEventListener('click', () => {
-          if (this._onDeleteEntity) this._onDeleteEntity(mesh, isModel);
+        if (this._onDeleteEntity) this._onDeleteEntity(mesh, isModel);
       });
-      
+
       tree.appendChild(li);
     });
   }
@@ -450,16 +468,16 @@ export class UIManager {
 
     const fileInput = document.getElementById('file-import-model');
     document.getElementById('btn-import-model').addEventListener('click', () => {
-       fileInput.click();
+      fileInput.click();
     });
-    
+
     fileInput.addEventListener('change', (e) => {
-       const files = Array.from(e.target.files);
-       if (files.length > 0 && this._onImportModel) {
-           this._onImportModel(files);
-       }
-       // 清空 value 使得同名文件也能再次触发 change
-       fileInput.value = '';
+      const files = Array.from(e.target.files);
+      if (files.length > 0 && this._onImportModel) {
+        this._onImportModel(files);
+      }
+      // 清空 value 使得同名文件也能再次触发 change
+      fileInput.value = '';
     });
 
     document.getElementById('btn-clear-scene').addEventListener('click', () => {
@@ -492,6 +510,21 @@ export class UIManager {
       if (this._onCheckCollision) {
         const count = this._onCheckCollision();
         this.setCollisionButtonState(true, count);
+      }
+    });
+
+    // 包络功能
+    this._onGenerateEnvelope = null;
+    document.getElementById('btn-envelope').addEventListener('click', () => {
+      const input = prompt('请输入包络偏移距离 (例如 2):', '2');
+      if (input === null) return;
+      const distance = parseFloat(input);
+      if (isNaN(distance) || distance <= 0) {
+        alert('请输入有效的正数');
+        return;
+      }
+      if (this._onGenerateEnvelope) {
+        this._onGenerateEnvelope(distance);
       }
     });
 

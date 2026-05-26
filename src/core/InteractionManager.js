@@ -159,18 +159,44 @@ export class InteractionManager extends EventTarget {
 
   _applyHoverMaterial(obj) {
     this._saveMaterial(obj);
-    const hoverMat = obj.material.clone();
-    hoverMat.emissive = new THREE.Color(0x38bdf8);
-    hoverMat.emissiveIntensity = 0.15;
-    obj.material = hoverMat;
+    if (Array.isArray(obj.material)) {
+      obj.material = obj.material.map(m => {
+        const hoverMat = m.clone();
+        if (hoverMat.emissive) {
+          hoverMat.emissive = new THREE.Color(0x38bdf8);
+          hoverMat.emissiveIntensity = 0.15;
+        }
+        return hoverMat;
+      });
+    } else if (obj.material) {
+      const hoverMat = obj.material.clone();
+      if (hoverMat.emissive) {
+        hoverMat.emissive = new THREE.Color(0x38bdf8);
+        hoverMat.emissiveIntensity = 0.15;
+      }
+      obj.material = hoverMat;
+    }
   }
 
   _applySelectMaterial(obj) {
     this._saveMaterial(obj);
-    const selectMat = obj.material.clone();
-    selectMat.emissive = new THREE.Color(0x38bdf8);
-    selectMat.emissiveIntensity = 0.35;
-    obj.material = selectMat;
+    if (Array.isArray(obj.material)) {
+      obj.material = obj.material.map(m => {
+        const selectMat = m.clone();
+        if (selectMat.emissive) {
+          selectMat.emissive = new THREE.Color(0x38bdf8);
+          selectMat.emissiveIntensity = 0.35;
+        }
+        return selectMat;
+      });
+    } else if (obj.material) {
+      const selectMat = obj.material.clone();
+      if (selectMat.emissive) {
+        selectMat.emissive = new THREE.Color(0x38bdf8);
+        selectMat.emissiveIntensity = 0.35;
+      }
+      obj.material = selectMat;
+    }
   }
 
   /* ---- Per-frame update ---- */

@@ -148,7 +148,7 @@ export class SceneManager {
     keyLight.shadow.camera.right = 30;
     keyLight.shadow.camera.top = 30;
     keyLight.shadow.camera.bottom = -30;
-    
+
     // 关键修正：加入阴影偏移配置，防止由于精度问题导致大面积微小阴影痘（Shadow acne）
     keyLight.shadow.bias = this.renderSettings.shadowBias;
     keyLight.shadow.normalBias = this.renderSettings.shadowNormalBias;
